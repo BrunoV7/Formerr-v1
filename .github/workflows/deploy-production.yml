@@ -1,6 +1,8 @@
 name: Deploy to Production
 
 on:
+  push:
+    branches: [main, pull-request]
   workflow_dispatch:
     inputs:
       environment:
