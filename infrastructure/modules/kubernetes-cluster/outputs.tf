@@ -48,10 +48,10 @@ output "node_pool" {
 
 output "monitoring_namespace" {
   description = "Monitoring namespace name"
-  value       = kubernetes_namespace.monitoring.metadata[0].name
+  value       = "monitoring"  # Static value since namespace will be created separately
 }
 
 output "apps_namespace" {
   description = "Applications namespace name"
-  value       = kubernetes_namespace.apps.metadata[0].name
+  value       = "formerr"  # Static value since namespace will be created separately
 }

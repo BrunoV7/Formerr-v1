@@ -34,28 +34,31 @@ resource "digitalocean_kubernetes_cluster" "cluster" {
   }
 }
 
-# Create namespace for monitoring
-resource "kubernetes_namespace" "monitoring" {
-  depends_on = [digitalocean_kubernetes_cluster.cluster]
-  
-  metadata {
-    name = "monitoring"
-    labels = {
-      name = "monitoring"
-      environment = var.cluster_name
-    }
-  }
-}
+# Note: Namespaces will be created separately after cluster is ready
+# This avoids provider dependency issues during initial infrastructure setup
 
-# Create namespace for applications
-resource "kubernetes_namespace" "apps" {
-  depends_on = [digitalocean_kubernetes_cluster.cluster]
+# # Create namespace for monitoring
+# resource "kubernetes_namespace" "monitoring" {
+#   depends_on = [digitalocean_kubernetes_cluster.cluster]
   
-  metadata {
-    name = "formerr"
-    labels = {
-      name = "formerr"
-      environment = var.cluster_name
-    }
-  }
-}
+#   metadata {
+#     name = "monitoring"
+#     labels = {
+#       name = "monitoring"
+#       environment = var.cluster_name
+#     }
+#   }
+# }
+
+# # Create namespace for applications
+# resource "kubernetes_namespace" "apps" {
+#   depends_on = [digitalocean_kubernetes_cluster.cluster]
+  
+#   metadata {
+#     name = "formerr"
+#     labels = {
+#       name = "formerr"
+#       environment = var.cluster_name
+#     }
+#   }
+# }

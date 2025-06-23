@@ -26,5 +26,5 @@ output "docker_credentials" {
 
 output "registry_secret_name" {
   description = "Name of the Kubernetes registry secret"
-  value       = kubernetes_secret.registry_secret.metadata[0].name
+  value       = "${digitalocean_container_registry.registry.name}-registry-secret"  # Static value since secret will be created separately
 }

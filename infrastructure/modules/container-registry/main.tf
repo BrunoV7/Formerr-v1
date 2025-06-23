@@ -18,34 +18,37 @@ resource "digitalocean_container_registry_docker_credentials" "registry_credenti
   registry_name = digitalocean_container_registry.registry.name
 }
 
-# Create a Kubernetes secret for registry authentication
-resource "kubernetes_secret" "registry_secret" {
-  metadata {
-    name      = "${var.registry_name}-registry-secret"
-    namespace = "formerr"
-  }
+# Note: Kubernetes secrets will be created separately after cluster is ready
+# This avoids provider dependency issues during initial infrastructure setup
 
-  type = "kubernetes.io/dockerconfigjson"
+# # Create a Kubernetes secret for registry authentication
+# resource "kubernetes_secret" "registry_secret" {
+#   metadata {
+#     name      = "${var.registry_name}-registry-secret"
+#     namespace = "formerr"
+#   }
 
-  data = {
-    ".dockerconfigjson" = digitalocean_container_registry_docker_credentials.registry_credentials.docker_credentials
-  }
+#   type = "kubernetes.io/dockerconfigjson"
 
-  depends_on = [digitalocean_container_registry_docker_credentials.registry_credentials]
-}
+#   data = {
+#     ".dockerconfigjson" = digitalocean_container_registry_docker_credentials.registry_credentials.docker_credentials
+#   }
 
-# Create registry secret for monitoring namespace too
-resource "kubernetes_secret" "registry_secret_monitoring" {
-  metadata {
-    name      = "${var.registry_name}-registry-secret"
-    namespace = "monitoring"
-  }
+#   depends_on = [digitalocean_container_registry_docker_credentials.registry_credentials]
+# }
 
-  type = "kubernetes.io/dockerconfigjson"
+# # Create registry secret for monitoring namespace too
+# resource "kubernetes_secret" "registry_secret_monitoring" {
+#   metadata {
+#     name      = "${var.registry_name}-registry-secret"
+#     namespace = "monitoring"
+#   }
 
-  data = {
-    ".dockerconfigjson" = digitalocean_container_registry_docker_credentials.registry_credentials.docker_credentials
-  }
+#   type = "kubernetes.io/dockerconfigjson"
 
-  depends_on = [digitalocean_container_registry_docker_credentials.registry_credentials]
-}
+#   data = {
+#     ".dockerconfigjson" = digitalocean_container_registry_docker_credentials.registry_credentials.docker_credentials
+#   }
+
+#   depends_on = [digitalocean_container_registry_docker_credentials.registry_credentials]
+# }

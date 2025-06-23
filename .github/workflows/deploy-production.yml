@@ -163,6 +163,37 @@ jobs:
         echo "cluster_endpoint=$(terraform output -raw cluster_endpoint)" >> $GITHUB_OUTPUT
         echo "registry_endpoint=$(terraform output -raw registry_endpoint)" >> $GITHUB_OUTPUT
 
+    - name: Setup Kubernetes Resources
+      env:
+        TF_VAR_do_token: ${{ secrets.DO_TOKEN_PROD }}
+      run: |
+        cd infrastructure/digitalocean-production
+        
+        # Save kubeconfig
+        doctl kubernetes cluster kubeconfig save ${{ env.CLUSTER_NAME }}
+        
+        # Create namespaces
+        kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+        kubectl create namespace formerr --dry-run=client -o yaml | kubectl apply -f -
+        
+        # Create registry secret
+        REGISTRY_NAME=$(terraform output -raw registry_name)
+        REGISTRY_CREDS=$(terraform output -raw registry_docker_credentials)
+        
+        kubectl create secret docker-registry ${REGISTRY_NAME}-registry-secret \
+          --docker-server="registry.digitalocean.com" \
+          --from-literal=".dockerconfigjson=$REGISTRY_CREDS" \
+          --type=kubernetes.io/dockerconfigjson \
+          --namespace=formerr \
+          --dry-run=client -o yaml | kubectl apply -f -
+          
+        kubectl create secret docker-registry ${REGISTRY_NAME}-registry-secret \
+          --docker-server="registry.digitalocean.com" \
+          --from-literal=".dockerconfigjson=$REGISTRY_CREDS" \
+          --type=kubernetes.io/dockerconfigjson \
+          --namespace=monitoring \
+          --dry-run=client -o yaml | kubectl apply -f -
+
   build-and-push:
     needs: [infrastructure, pre-deployment-checks]
     runs-on: ubuntu-latest

@@ -53,3 +53,21 @@ output "firewall_id" {
   description = "Firewall ID"
   value       = digitalocean_firewall.production_firewall.id
 }
+
+output "cluster_token" {
+  description = "Token for the Kubernetes cluster"
+  value       = module.kubernetes_cluster.cluster_token
+  sensitive   = true
+}
+
+output "cluster_ca_certificate" {
+  description = "CA certificate for the Kubernetes cluster"
+  value       = module.kubernetes_cluster.cluster_ca_certificate
+  sensitive   = true
+}
+
+output "registry_docker_credentials" {
+  description = "Docker credentials for the registry"
+  value       = module.container_registry.docker_credentials
+  sensitive   = true
+}

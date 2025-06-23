@@ -44,19 +44,8 @@ provider "digitalocean" {
   token = var.do_token
 }
 
-provider "kubernetes" {
-  host  = module.kubernetes_cluster.cluster_endpoint
-  token = module.kubernetes_cluster.cluster_token
-  cluster_ca_certificate = module.kubernetes_cluster.cluster_ca_certificate
-}
-
-provider "helm" {
-  kubernetes {
-    host  = module.kubernetes_cluster.cluster_endpoint
-    token = module.kubernetes_cluster.cluster_token
-    cluster_ca_certificate = module.kubernetes_cluster.cluster_ca_certificate
-  }
-}
+# Kubernetes and Helm providers will be configured dynamically
+# when the cluster is available
 
 # Create VPC for isolation
 resource "digitalocean_vpc" "staging_vpc" {
