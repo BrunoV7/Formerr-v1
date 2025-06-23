@@ -9,6 +9,8 @@ env:
   REGISTRY: registry.digitalocean.com
   REGISTRY_NAME: formerr-staging-registry
   CLUSTER_NAME: formerr-staging
+  AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_KEY }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET }}
 
 jobs:
   infrastructure:

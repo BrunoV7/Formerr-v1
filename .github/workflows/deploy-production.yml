@@ -21,6 +21,8 @@ env:
   REGISTRY: registry.digitalocean.com
   REGISTRY_NAME: formerr-production-registry
   CLUSTER_NAME: formerr-production
+  AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_KEY }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET }}
 
 jobs:
   approval:

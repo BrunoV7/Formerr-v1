@@ -20,8 +20,6 @@ terraform {
     bucket     = "formerr-spaces"
     key        = "terraform/production/terraform.tfstate"
     region     = "nyc3"
-    access_key = "${env.DO_SPACES_KEY}"
-    secret_key = "${env.DO_SPACES_SECRET}"
     skip_credentials_validation = true
     skip_metadata_api_check     = true
   }
