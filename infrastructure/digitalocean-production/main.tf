@@ -16,13 +16,20 @@ terraform {
   }
 
   backend "s3" {
-    endpoint   = "https://formerr-spaces.nyc3.digitaloceanspaces.com"
-    bucket     = "formerr-spaces"
-    key        = "terraform/production/terraform.tfstate"
-    region     = "us-east-1"
+    bucket                      = "formerr-tfstate"
+    key                         = "digitalocean/production/terraform.tfstate"
+    endpoints = {
+      s3 = "https://formerr-spaces.nyc3.digitaloceanspaces.com"
+    }
+    region                      = "us-east-1" 
     skip_credentials_validation = true
     skip_metadata_api_check     = true
+    skip_requesting_account_id  = true
+    force_path_style            = true
+    access_key                  = var.spaces_access_key
+    secret_key                  = var.spaces_secret_key
   }
+
 }
 
 # Local variables
