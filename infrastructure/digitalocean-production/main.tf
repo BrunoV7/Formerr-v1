@@ -15,16 +15,17 @@ terraform {
     }
   }
 
-  backend "s3" {
-    bucket                      = "formerr-spaces"
-    key                         = "terraform/production/terraform.tfstate"
-    region                      = "us-east-1"
-    endpoints = {
-      s3 = "https://formerr-spaces.nyc3.digitaloceanspaces.com"
-    }
-    skip_credentials_validation = true
-    skip_metadata_api_check     = true
-  }
+  # Commented out S3 backend - using local backend for now
+  # backend "s3" {
+  #   bucket                      = "formerr-spaces"
+  #   key                         = "terraform/production/terraform.tfstate"
+  #   region                      = "us-east-1"
+  #   endpoints = {
+  #     s3 = "https://formerr-spaces.nyc3.digitaloceanspaces.com"
+  #   }
+  #   skip_credentials_validation = true
+  #   skip_metadata_api_check     = true
+  # }
 
 }
 

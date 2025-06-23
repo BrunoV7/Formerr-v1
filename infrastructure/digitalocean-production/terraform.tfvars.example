@@ -1,0 +1,16 @@
+# DigitalOcean Configuration
+do_token = "your_digitalocean_api_token_here"
+
+# Infrastructure Configuration
+region = "nyc3"
+node_count = 3
+node_size = "s-4vcpu-8gb"
+kubernetes_version = "1.29.1-do.0"
+environment = "production"
+
+# Para usar backend S3 (DigitalOcean Spaces), configure as seguintes variáveis de ambiente:
+# export DIGITALOCEAN_SPACES_ACCESS_KEY="your_spaces_access_key"
+# export DIGITALOCEAN_SPACES_SECRET_KEY="your_spaces_secret_key"
+# export AWS_ACCESS_KEY_ID=$DIGITALOCEAN_SPACES_ACCESS_KEY
+# export AWS_SECRET_ACCESS_KEY=$DIGITALOCEAN_SPACES_SECRET_KEY
+# export AWS_ENDPOINT_URL_S3="https://formerr-spaces.nyc3.digitaloceanspaces.com"
