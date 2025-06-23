@@ -28,12 +28,11 @@ fi
 
 # Verificar se registry existe  
 echo "🔍 Verificando se o container registry 'formerr' existe..."
-REGISTRY_NAME=$(doctl registry list --format Name --no-header | grep "formerr" || echo "")
-if [ ! -z "$REGISTRY_NAME" ]; then
-    echo "✅ Registry encontrado: $REGISTRY_NAME"
+if doctl registry get formerr >/dev/null 2>&1; then
+    echo "✅ Registry encontrado: formerr"
 else
     echo "❌ Container registry 'formerr' não encontrado!"
-    echo "💡 Você precisa criar o registry primeiro"
+    echo "💡 Você pode criar com: doctl registry create formerr --subscription-tier basic"
     exit 1
 fi
 
