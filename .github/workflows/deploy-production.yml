@@ -243,8 +243,8 @@ jobs:
         kubectl create secret generic formerr-app-secrets \
           --from-literal=secret-key="${{ secrets.SECRET_KEY }}" \
           --from-literal=session-secret="${{ secrets.SESSION_SECRET }}" \
-          --from-literal=github-client-id="${{ secrets.GITHUB_CLIENT_ID }}" \
-          --from-literal=github-client-secret="${{ secrets.GITHUB_CLIENT_SECRET }}" \
+          --from-literal=github-client-id="${{ secrets.CLIENT_ID }}" \
+          --from-literal=github-client-secret="${{ secrets.CLIENT_SECRET }}" \
           --namespace=formerr \
           --dry-run=client -o yaml | kubectl apply -f -
         

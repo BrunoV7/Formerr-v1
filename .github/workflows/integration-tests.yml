@@ -51,9 +51,9 @@ jobs:
         pytest -v
       env:
         DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
-        SECRET_KEY: test-secret-key-for-integration-testing
-        GITHUB_CLIENT_ID: test-client-id
-        GITHUB_CLIENT_SECRET: test-client-secret
+        SECRET_KEY: test-secret-key
+        CLIENT_ID: test-client-id
+        CLIENT_SECRET: test-client-secret
 
     # Frontend setup
     - name: Set up Node.js
@@ -82,8 +82,8 @@ jobs:
       env:
         DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
         SECRET_KEY: test-secret-key
-        GITHUB_CLIENT_ID: test-client-id
-        GITHUB_CLIENT_SECRET: test-client-secret
+        CLIENT_ID: test-client-id
+        CLIENT_SECRET: test-client-secret
 
     - name: Start frontend service
       run: |
@@ -148,8 +148,8 @@ jobs:
             environment:
               DATABASE_URL: postgresql://test_user:test_password@postgres:5432/test_db
               SECRET_KEY: test-secret-key
-              GITHUB_CLIENT_ID: test-client-id
-              GITHUB_CLIENT_SECRET: test-client-secret
+              CLIENT_ID: test-client-id
+              CLIENT_SECRET: test-client-secret
             depends_on:
               - postgres
               

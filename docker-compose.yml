@@ -27,8 +27,8 @@ services:
       dockerfile: Dockerfile
       args:
         - DATABASE_URL=postgresql://formerr_user:formerr_password@postgres:5432/formerr_db
-        - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
-        - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+        - CLIENT_ID=${CLIENT_ID}
+        - CLIENT_SECRET=${CLIENT_SECRET}
         - JWT_SECRET=${JWT_SECRET:-default-jwt-secret-for-development}
         - SESSION_SECRET=${SESSION_SECRET:-default-session-secret-for-development}
         - FRONTEND_SUCCESS_URL=http://localhost:3000/auth/success
