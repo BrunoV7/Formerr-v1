@@ -7,17 +7,7 @@ on:
 
 env:
   REGISTRY: registry.digitalocean.com
-  REGISTRY_NAME: formerr-    - name: Deploy to Staging
-      run: |
-        cd charts/formerr
-        
-        # For staging, create minimal database secret since we use in-cluster PostgreSQL
-        # The PostgreSQL chart will manage its own credentials
-        kubectl create secret generic formerr-database-secret \
-          --from-literal=database-url="postgresql://formerr_user:staging_password_123@formerr-postgresql:5432/formerr_staging" \
-          --from-literal=postgres-password="staging_password_123" \
-          --namespace=formerr \
-          --dry-run=client -o yaml | kubectl apply -f -gistry
+  REGISTRY_NAME: formerr-staging-registry
   CLUSTER_NAME: formerr-staging
 
 jobs:
