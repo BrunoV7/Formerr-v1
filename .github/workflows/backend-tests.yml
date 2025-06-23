@@ -114,8 +114,8 @@ jobs:
         # Check for known security vulnerabilities
         safety check -r requirements.txt --json || true
 
+    - name: Install Bandit
+      run: pip install bandit
+
     - name: Run Bandit security linter
-      uses: securecodewarrior/github-action-bandit@v1
-      with:
-        path: "backend"
-        level: "medium"
+      run: bandit -r . -ll
