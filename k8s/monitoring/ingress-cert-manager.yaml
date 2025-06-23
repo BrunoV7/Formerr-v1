@@ -1,0 +1,44 @@
+# NGINX Ingress Controller and Cert-Manager Installation
+# This file should be applied AFTER the cluster is ready
+# Use: kubectl apply -f k8s/monitoring/ingress-cert-manager.yaml
+
+---
+# Install NGINX Ingress Controller using manifests
+# Note: NGINX Ingress should be installed via kubectl apply, not this file
+# This file contains only the ClusterIssuer configurations
+
+# Wait for cert-manager to be ready before applying these ClusterIssuers
+# kubectl wait --for=condition=available deployment/cert-manager -n cert-manager --timeout=300s
+
+---
+# ClusterIssuer for Let's Encrypt Production
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    email: backupnobre62@gmail.com  # Change this to your email
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+---
+# ClusterIssuer for Let's Encrypt Staging  
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    email: backupnobre62@gmail.com  # Change this to your email
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging
+    solvers:
+    - http01:
+        ingress:
+          class: nginx

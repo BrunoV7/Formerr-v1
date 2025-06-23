@@ -1,0 +1,115 @@
+# Staging-specific values for Formerr
+# This file overrides values.yaml for staging environment
+
+global:
+  imageRegistry: registry.digitalocean.com
+  imagePullSecrets:
+    - name: formerr-staging-registry-registry-secret
+
+# Environment settings
+environment: staging
+replicaCount: 2
+
+# Backend configuration
+backend:
+  enabled: true
+  image:
+    repository: formerr-staging-registry/formerr-backend
+    tag: latest
+    pullPolicy: Always
+  
+  replicaCount: 2
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# Frontend configuration
+frontend:
+  enabled: true
+  image:
+    repository: formerr-staging-registry/formerr-frontend
+    tag: latest
+    pullPolicy: Always
+  
+  replicaCount: 2
+  
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+# Database configuration (PostgreSQL)
+# For staging, we use PostgreSQL inside the cluster
+postgresql:
+  enabled: true
+  auth:
+    database: "formerr_staging"
+    username: "formerr_user"
+    password: "staging_password_123"  # Simple password for staging
+    postgresPassword: "postgres_admin_123"
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: "do-block-storage"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+# External database configuration (disabled for staging)
+externalDatabase:
+  enabled: false
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    prometheusSpec:
+      retention: "7d"
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            resources:
+              requests:
+                storage: 10Gi
+  
+  grafana:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 5Gi
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: staging.formerr.dev
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

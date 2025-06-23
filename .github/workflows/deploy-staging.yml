@@ -1,0 +1,339 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: registry.digitalocean.com
+  REGISTRY_NAME: formerr-    - name: Deploy to Staging
+      run: |
+        cd charts/formerr
+        
+        # For staging, create minimal database secret since we use in-cluster PostgreSQL
+        # The PostgreSQL chart will manage its own credentials
+        kubectl create secret generic formerr-database-secret \
+          --from-literal=database-url="postgresql://formerr_user:staging_password_123@formerr-postgresql:5432/formerr_staging" \
+          --from-literal=postgres-password="staging_password_123" \
+          --namespace=formerr \
+          --dry-run=client -o yaml | kubectl apply -f -gistry
+  CLUSTER_NAME: formerr-staging
+
+jobs:
+  infrastructure:
+    runs-on: ubuntu-latest
+    outputs:
+      cluster_endpoint: ${{ steps.terraform.outputs.cluster_endpoint }}
+      registry_endpoint: ${{ steps.terraform.outputs.registry_endpoint }}
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.0
+        terraform_wrapper: false
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DO_TOKEN_STAGING }}
+
+    - name: Terraform Init
+      run: |
+        cd infrastructure/digitalocean-staging
+        terraform init
+
+    - name: Terraform Plan
+      id: plan
+      run: |
+        cd infrastructure/digitalocean-staging
+        terraform plan -var="do_token=${{ secrets.DO_TOKEN_STAGING }}" -out=tfplan
+        
+        # Check if there are changes to apply
+        if terraform show -json tfplan | jq -e '.resource_changes[] | select(.change.actions[] | contains("create", "update", "delete"))' > /dev/null; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Terraform Apply
+      if: steps.plan.outputs.has_changes == 'true'
+      id: terraform
+      run: |
+        cd infrastructure/digitalocean-staging
+        terraform apply -auto-approve tfplan
+        
+        # Export outputs
+        echo "cluster_endpoint=$(terraform output -raw cluster_endpoint)" >> $GITHUB_OUTPUT
+        echo "registry_endpoint=$(terraform output -raw registry_endpoint)" >> $GITHUB_OUTPUT
+
+    - name: Get existing outputs (if no changes)
+      if: steps.plan.outputs.has_changes == 'false'
+      id: existing
+      run: |
+        cd infrastructure/digitalocean-staging
+        echo "cluster_endpoint=$(terraform output -raw cluster_endpoint)" >> $GITHUB_OUTPUT
+        echo "registry_endpoint=$(terraform output -raw registry_endpoint)" >> $GITHUB_OUTPUT
+
+  build-and-push:
+    needs: infrastructure
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [backend, frontend]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DO_TOKEN_STAGING }}
+
+    - name: Log in to DigitalOcean Container Registry
+      run: doctl registry login
+
+    - name: Build and push ${{ matrix.component }}
+      run: |
+        cd ${{ matrix.component }}
+        
+        # Build image with commit SHA tag
+        IMAGE_TAG="${GITHUB_SHA:0:7}"
+        IMAGE_NAME="${REGISTRY}/${REGISTRY_NAME}/formerr-${{ matrix.component }}"
+        
+        docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -t ${IMAGE_NAME}:latest .
+        
+        # Push both tags
+        docker push ${IMAGE_NAME}:${IMAGE_TAG}
+        docker push ${IMAGE_NAME}:latest
+
+  deploy:
+    needs: [infrastructure, build-and-push]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DO_TOKEN_STAGING }}
+
+    - name: Save kubeconfig
+      run: |
+        doctl kubernetes cluster kubeconfig save ${{ env.CLUSTER_NAME }}
+
+    - name: Install Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
+
+    - name: Add Helm repositories
+      run: |
+        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+        helm repo add grafana https://grafana.github.io/helm-charts
+        helm repo update
+
+    - name: Deploy Prometheus (if not exists)
+      run: |
+        if ! helm list -n monitoring | grep -q prometheus; then
+          helm install prometheus prometheus-community/kube-prometheus-stack \
+            --namespace monitoring \
+            --create-namespace \
+            --set prometheus.prometheusSpec.retention=7d \
+            --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage=10Gi \
+            --set grafana.adminPassword=${{ secrets.GRAFANA_ADMIN_PASSWORD }} \
+            --set grafana.persistence.enabled=true \
+            --set grafana.persistence.size=5Gi \
+            --wait --timeout=10m
+        else
+          echo "Prometheus already deployed"
+        fi
+
+    - name: Deploy application
+      run: |
+        cd charts/formerr
+        
+        # Create database secret first
+        kubectl create secret generic formerr-database-secret \
+          --from-literal=database-url="${{ secrets.DATABASE_URL_STAGING }}" \
+          --from-literal=postgres-password="${{ secrets.POSTGRES_PASSWORD_STAGING }}" \
+          --namespace=formerr \
+          --dry-run=client -o yaml | kubectl apply -f -
+        
+        # Create application secrets
+        kubectl create secret generic formerr-app-secrets \
+          --from-literal=secret-key="${{ secrets.SECRET_KEY }}" \
+          --from-literal=session-secret="${{ secrets.SESSION_SECRET }}" \
+          --from-literal=github-client-id="${{ secrets.GITHUB_CLIENT_ID }}" \
+          --from-literal=github-client-secret="${{ secrets.GITHUB_CLIENT_SECRET }}" \
+          --namespace=formerr \
+          --dry-run=client -o yaml | kubectl apply -f -
+        
+        # Create values file for staging
+        cat > values-staging-override.yaml << EOF
+        global:
+          imageRegistry: ${REGISTRY}
+          imagePullSecrets:
+            - name: formerr-staging-registry-registry-secret
+
+        backend:
+          image:
+            repository: ${REGISTRY_NAME}/formerr-backend
+            tag: "${GITHUB_SHA:0:7}"
+          replicaCount: 2
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: formerr-database-secret
+                  key: database-url
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: formerr-app-secrets
+                  key: secret-key
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: formerr-app-secrets
+                  key: session-secret
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: formerr-app-secrets
+                  key: github-client-id
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: formerr-app-secrets
+                  key: github-client-secret
+            - name: ENVIRONMENT
+              value: "staging"
+            - name: FRONTEND_SUCCESS_URL
+              value: "https://staging.formerr.dev/auth/success"
+            - name: FRONTEND_ERROR_URL
+              value: "https://staging.formerr.dev/auth/error"
+            - name: OAUTH_CALLBACK_URL
+              value: "https://api.staging.formerr.dev/auth/github/callback"
+            - name: ALLOWED_ORIGINS
+              value: "https://staging.formerr.dev"
+
+        frontend:
+          image:
+            repository: ${REGISTRY_NAME}/formerr-frontend
+            tag: "${GITHUB_SHA:0:7}"
+          replicaCount: 2
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+
+        postgresql:
+          enabled: true
+          auth:
+            postgresPassword: "postgres_admin_123"
+            password: "staging_password_123"
+            username: "formerr_user"
+            database: "formerr_staging"
+          primary:
+            persistence:
+              enabled: true
+              size: 5Gi
+
+        ingress:
+          enabled: true
+          annotations:
+            kubernetes.io/ingress.class: "nginx"
+            cert-manager.io/cluster-issuer: "letsencrypt-staging"
+          hosts:
+            - host: staging.formerr.dev
+              paths:
+                - path: /
+                  pathType: Prefix
+          tls:
+            - secretName: formerr-staging-tls
+              hosts:
+                - staging.formerr.dev
+
+        monitoring:
+          enabled: true
+          serviceMonitor:
+            enabled: true
+        EOF
+        
+        # Deploy or upgrade
+        helm upgrade --install formerr . \
+          --namespace formerr \
+          --create-namespace \
+          -f values.yaml \
+          -f values-staging-override.yaml \
+          --wait --timeout=10m
+
+    - name: Run smoke tests
+      run: |
+        # Wait for deployment to be ready
+        kubectl wait --for=condition=available --timeout=300s deployment/formerr-backend -n formerr
+        kubectl wait --for=condition=available --timeout=300s deployment/formerr-frontend -n formerr
+        
+        # Get service endpoints
+        BACKEND_URL=$(kubectl get service formerr-backend -n formerr -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        if [ -z "$BACKEND_URL" ]; then
+          BACKEND_URL=$(kubectl get service formerr-backend -n formerr -o jsonpath='{.spec.clusterIP}')
+        fi
+        
+        # Port forward for testing
+        kubectl port-forward service/formerr-backend 8000:8000 -n formerr &
+        kubectl port-forward service/formerr-frontend 3000:3000 -n formerr &
+        sleep 10
+        
+        # Test endpoints
+        curl -f http://localhost:8000/health || exit 1
+        curl -f http://localhost:3000 || exit 1
+        
+        echo "✅ Staging deployment successful!"
+
+    - name: Update deployment status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ Staging deployment completed successfully"
+          echo "🌍 Access your application at: https://staging.formerr.dev"
+          echo "📊 Monitor at: https://grafana.staging.formerr.dev"
+        else
+          echo "❌ Staging deployment failed"
+          exit 1
+        fi
+
+  notify:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Notify deployment result
+      run: |
+        if [ "${{ needs.deploy.result }}" == "success" ]; then
+          echo "🚀 Staging deployment successful!"
+          echo "Environment: https://staging.formerr.dev"
+          # Add Slack/Discord notification here if needed
+        else
+          echo "❌ Staging deployment failed!"
+          # Add failure notification here if needed
+        fi

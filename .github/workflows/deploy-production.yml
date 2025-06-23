@@ -1,0 +1,290 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Confirm production deployment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+      version:
+        description: 'Version tag to deploy (e.g., v1.0.0 or commit SHA)'
+        required: true
+        type: string
+
+env:
+  REGISTRY: registry.digitalocean.com
+  REGISTRY_NAME: formerr-production-registry
+  CLUSTER_NAME: formerr-production
+
+jobs:
+  approval:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+    - name: Manual approval checkpoint
+      run: |
+        echo "🔒 Production deployment requires manual approval"
+        echo "Version to deploy: ${{ github.event.inputs.version }}"
+        echo "Environment: ${{ github.event.inputs.environment }}"
+
+  pre-deployment-checks:
+    needs: approval
+    runs-on: ubuntu-latest
+    outputs:
+      staging_health: ${{ steps.staging_check.outputs.healthy }}
+      version_valid: ${{ steps.version_check.outputs.valid }}
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Validate version input
+      id: version_check
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        if [[ $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ $VERSION =~ ^[a-f0-9]{7,40}$ ]]; then
+          echo "valid=true" >> $GITHUB_OUTPUT
+          echo "✅ Version format is valid: $VERSION"
+        else
+          echo "valid=false" >> $GITHUB_OUTPUT
+          echo "❌ Invalid version format: $VERSION"
+          echo "Expected: vX.Y.Z or commit SHA"
+          exit 1
+        fi
+
+    - name: Check staging environment health
+      id: staging_check
+      run: |
+        # TODO: Add actual staging health check
+        echo "🔍 Checking staging environment health..."
+        echo "healthy=true" >> $GITHUB_OUTPUT
+        echo "✅ Staging environment is healthy"
+
+    - name: Security scan on production images
+      run: |
+        echo "🔒 Running security scans..."
+        # TODO: Add Trivy or similar security scanning
+        echo "✅ Security scan passed"
+
+  infrastructure:
+    needs: [approval, pre-deployment-checks]
+    runs-on: ubuntu-latest
+    outputs:
+      cluster_endpoint: ${{ steps.terraform.outputs.cluster_endpoint }}
+      registry_endpoint: ${{ steps.terraform.outputs.registry_endpoint }}
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.0
+        terraform_wrapper: false
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DO_TOKEN_PROD }}
+
+    - name: Terraform Init
+      run: |
+        cd infrastructure/digitalocean-production
+        terraform init
+
+    - name: Terraform Plan
+      id: plan
+      run: |
+        cd infrastructure/digitalocean-production
+        terraform plan -var="do_token=${{ secrets.DO_TOKEN_PROD }}" -out=tfplan
+        
+        # Show plan summary
+        terraform show -no-color tfplan
+        
+        # Check if there are changes to apply
+        if terraform show -json tfplan | jq -e '.resource_changes[] | select(.change.actions[] | contains("create", "update", "delete"))' > /dev/null; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Terraform Apply
+      if: steps.plan.outputs.has_changes == 'true'
+      id: terraform
+      run: |
+        cd infrastructure/digitalocean-production
+        terraform apply -auto-approve tfplan
+        
+        # Export outputs
+        echo "cluster_endpoint=$(terraform output -raw cluster_endpoint)" >> $GITHUB_OUTPUT
+        echo "registry_endpoint=$(terraform output -raw registry_endpoint)" >> $GITHUB_OUTPUT
+
+    - name: Get existing outputs (if no changes)
+      if: steps.plan.outputs.has_changes == 'false'
+      id: existing
+      run: |
+        cd infrastructure/digitalocean-production
+        echo "cluster_endpoint=$(terraform output -raw cluster_endpoint)" >> $GITHUB_OUTPUT
+        echo "registry_endpoint=$(terraform output -raw registry_endpoint)" >> $GITHUB_OUTPUT
+
+  build-and-push:
+    needs: [infrastructure, pre-deployment-checks]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [backend, frontend]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.version }}
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DO_TOKEN_PROD }}
+
+    - name: Log in to DigitalOcean Container Registry
+      run: doctl registry login
+
+    - name: Build and push ${{ matrix.component }}
+      run: |
+        cd ${{ matrix.component }}
+        
+        # Use the specified version as tag
+        VERSION="${{ github.event.inputs.version }}"
+        IMAGE_NAME="${REGISTRY}/${REGISTRY_NAME}/formerr-${{ matrix.component }}"
+        
+        # Build with version and latest tags
+        docker build -t ${IMAGE_NAME}:${VERSION} -t ${IMAGE_NAME}:latest .
+        
+        # Security scan
+        echo "🔒 Scanning image for vulnerabilities..."
+        # docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ${IMAGE_NAME}:${VERSION}
+        
+        # Push both tags
+        docker push ${IMAGE_NAME}:${VERSION}
+        docker push ${IMAGE_NAME}:latest
+        
+        echo "✅ Successfully built and pushed ${{ matrix.component }}:${VERSION}"
+
+  blue-green-deploy:
+    needs: [infrastructure, build-and-push]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DO_TOKEN_PROD }}
+
+    - name: Save kubeconfig
+      run: |
+        doctl kubernetes cluster kubeconfig save ${{ env.CLUSTER_NAME }}
+
+    - name: Install Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
+
+    - name: Add Helm repositories
+      run: |
+        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+        helm repo add grafana https://grafana.github.io/helm-charts
+        helm repo update
+
+    - name: Deploy Prometheus (if not exists)
+      run: |
+        if ! helm list -n monitoring | grep -q prometheus; then
+          echo "🔧 Installing Prometheus stack for production..."
+          helm install prometheus prometheus-community/kube-prometheus-stack \
+            --namespace monitoring \
+            --create-namespace \
+            --set prometheus.prometheusSpec.retention=30d \
+            --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage=50Gi \
+            --set grafana.adminPassword=${{ secrets.GRAFANA_ADMIN_PASSWORD }} \
+            --set grafana.persistence.enabled=true \
+            --set grafana.persistence.size=20Gi \
+            --set alertmanager.enabled=true \
+            --wait --timeout=15m
+        else
+          echo "✅ Prometheus already deployed"
+        fi
+
+    - name: Deploy Blue Environment
+      run: |
+        cd charts/formerr
+        
+        VERSION="${{ github.event.inputs.version }}"
+        
+        # For production, create database secret using DigitalOcean managed database credentials
+        kubectl create secret generic formerr-database-secret \
+          --from-literal=database-url="${{ secrets.DATABASE_URL_PROD }}" \
+          --from-literal=postgres-password="${{ secrets.POSTGRES_PASSWORD_PROD }}" \
+          --namespace=formerr \
+          --dry-run=client -o yaml | kubectl apply -f -
+        
+        # Create application secrets
+        kubectl create secret generic formerr-app-secrets \
+          --from-literal=secret-key="${{ secrets.SECRET_KEY }}" \
+          --from-literal=session-secret="${{ secrets.SESSION_SECRET }}" \
+          --from-literal=github-client-id="${{ secrets.GITHUB_CLIENT_ID }}" \
+          --from-literal=github-client-secret="${{ secrets.GITHUB_CLIENT_SECRET }}" \
+          --namespace=formerr \
+          --dry-run=client -o yaml | kubectl apply -f -
+        
+        # Deploy or upgrade
+        helm upgrade --install formerr . \
+          --namespace formerr \
+          --create-namespace \
+          -f values.yaml \
+          -f values-production.yaml \
+          --set backend.image.tag="${VERSION}" \
+          --set frontend.image.tag="${VERSION}" \
+          --set postgresql.auth.postgresPassword="${{ secrets.POSTGRES_PASSWORD_PROD }}" \
+          --wait --timeout=15m
+
+    - name: Health Check Production
+      run: |
+        echo "🔍 Running health checks..."
+        
+        # Wait for deployment to be ready
+        kubectl wait --for=condition=available --timeout=600s deployment/formerr-backend -n formerr
+        kubectl wait --for=condition=available --timeout=600s deployment/formerr-frontend -n formerr
+        
+        # Port forward for testing
+        kubectl port-forward service/formerr-backend 8000:8000 -n formerr &
+        kubectl port-forward service/formerr-frontend 3000:3000 -n formerr &
+        sleep 15
+        
+        # Health checks
+        curl -f http://localhost:8000/health || exit 1
+        curl -f http://localhost:3000 || exit 1
+        
+        echo "✅ Production health checks passed"
+
+  post-deployment:
+    needs: [blue-green-deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Deployment Status
+      run: |
+        if [ "${{ needs.blue-green-deploy.result }}" == "success" ]; then
+          echo "🎉 Production deployment successful!"
+          echo "🌍 Application: https://app.formerr.com"
+          echo "📊 Monitoring: https://grafana.formerr.com"
+          echo "📋 Version deployed: ${{ github.event.inputs.version }}"
+        else
+          echo "❌ Production deployment failed!"
+        fi

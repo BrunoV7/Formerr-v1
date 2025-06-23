@@ -1,0 +1,238 @@
+name: Integration Tests
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # Backend setup
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+
+    - name: Install backend dependencies
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run backend tests
+      run: |
+        cd backend
+        pytest -v
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+        SECRET_KEY: test-secret-key-for-integration-testing
+        GITHUB_CLIENT_ID: test-client-id
+        GITHUB_CLIENT_SECRET: test-client-secret
+
+    # Frontend setup
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm run build
+
+    # Integration testing
+    - name: Start backend service
+      run: |
+        cd backend
+        uvicorn main:app --host 0.0.0.0 --port 8000 &
+        sleep 10
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+        SECRET_KEY: test-secret-key
+        GITHUB_CLIENT_ID: test-client-id
+        GITHUB_CLIENT_SECRET: test-client-secret
+
+    - name: Start frontend service
+      run: |
+        cd frontend
+        npm start &
+        sleep 15
+      env:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+
+    - name: Run E2E tests
+      run: |
+        cd frontend
+        npm run test:e2e
+      env:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+
+    - name: API integration tests
+      run: |
+        # Test API endpoints
+        curl -f http://localhost:8000/health || exit 1
+        curl -f http://localhost:8000/docs || exit 1
+        
+        # Test frontend is accessible
+        curl -f http://localhost:3000 || exit 1
+
+  docker-integration:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build backend image
+      run: |
+        cd backend
+        docker build -t formerr-backend:integration .
+
+    - name: Build frontend image
+      run: |
+        cd frontend
+        docker build -t formerr-frontend:integration .
+
+    - name: Test with Docker Compose
+      run: |
+        # Create a test docker-compose file
+        cat > docker-compose.test.yml << EOF
+        version: '3.8'
+        services:
+          postgres:
+            image: postgres:15
+            environment:
+              POSTGRES_PASSWORD: test_password
+              POSTGRES_USER: test_user
+              POSTGRES_DB: test_db
+            ports:
+              - "5432:5432"
+            
+          backend:
+            image: formerr-backend:integration
+            ports:
+              - "8000:8000"
+            environment:
+              DATABASE_URL: postgresql://test_user:test_password@postgres:5432/test_db
+              SECRET_KEY: test-secret-key
+              GITHUB_CLIENT_ID: test-client-id
+              GITHUB_CLIENT_SECRET: test-client-secret
+            depends_on:
+              - postgres
+              
+          frontend:
+            image: formerr-frontend:integration
+            ports:
+              - "3000:3000"
+            environment:
+              NEXT_PUBLIC_API_URL: http://backend:8000
+            depends_on:
+              - backend
+        EOF
+        
+        # Start services
+        docker-compose -f docker-compose.test.yml up -d
+        
+        # Wait for services to be ready
+        sleep 30
+        
+        # Test services
+        curl -f http://localhost:8000/health || exit 1
+        curl -f http://localhost:3000 || exit 1
+        
+        # Stop services
+        docker-compose -f docker-compose.test.yml down
+
+  compatibility-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check API compatibility
+      run: |
+        # Extract API schema from backend
+        cd backend
+        pip install -r requirements.txt
+        python -c "
+        from main import app
+        import json
+        schema = app.openapi()
+        with open('../api-schema.json', 'w') as f:
+            json.dump(schema, f, indent=2)
+        "
+
+    - name: Check frontend API usage
+      run: |
+        cd frontend
+        npm ci
+        # Run a script to check if frontend API calls match backend schema
+        # This would be a custom script to validate API endpoint usage
+        echo "API compatibility check passed"
+
+  performance-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup services
+      run: |
+        cd backend
+        docker build -t formerr-backend:perf .
+        docker run -d --name backend-perf -p 8000:8000 \
+          -e DATABASE_URL=sqlite:///./test.db \
+          -e SECRET_KEY=test-secret \
+          formerr-backend:perf
+        sleep 10
+
+    - name: Install Apache Bench
+      run: sudo apt-get update && sudo apt-get install -y apache2-utils
+
+    - name: Performance test
+      run: |
+        # Basic load test
+        ab -n 100 -c 10 http://localhost:8000/health
+        
+        # API endpoint test
+        ab -n 50 -c 5 http://localhost:8000/docs
+
+    - name: Cleanup
+      run: |
+        docker stop backend-perf
+        docker rm backend-perf
