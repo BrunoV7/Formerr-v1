@@ -15,15 +15,16 @@ terraform {
     }
   }
 
-  # Remote state backend - configurar depois
-  # backend "s3" {
-  #   endpoint                    = "nyc3.digitaloceanspaces.com"
-  #   key                        = "terraform/production/terraform.tfstate"
-  #   bucket                     = "formerr-terraform-state"
-  #   region                     = "us-east-1"
-  #   skip_credentials_validation = true
-  #   skip_metadata_api_check     = true
-  # }
+  backend "s3" {
+    endpoint   = "https://formerr-spaces.nyc3.digitaloceanspaces.com"
+    bucket     = "formerr-spaces"
+    key        = "terraform/production/terraform.tfstate"
+    region     = "nyc3"
+    access_key = "${env.AWS_ACCESS_KEY_ID}"
+    secret_key = "${env.AWS_SECRET_ACCESS_KEY}"
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+  }
 }
 
 # Local variables
