@@ -40,6 +40,8 @@ jobs:
         terraform init
 
     - name: Check for existing resources
+      env:
+        TF_VAR_do_token: ${{ secrets.DO_TOKEN_STAGING }}
       run: |
         cd infrastructure/digitalocean-staging
         echo "🔍 Checking for existing resources that might conflict..."
