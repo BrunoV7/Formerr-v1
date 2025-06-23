@@ -25,7 +25,7 @@ variable "cluster_version" {
 variable "node_count" {
   description = "Number of worker nodes in the cluster"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "node_size" {
@@ -78,4 +78,16 @@ variable "tags" {
     Project     = "formerr"
     ManagedBy   = "terraform"
   }
+}
+
+variable "create_load_balancer" {
+  description = "Whether to create a load balancer"
+  type        = bool
+  default     = false  # Disabled by default to avoid certificate issues
+}
+
+variable "enable_https" {
+  description = "Whether to enable HTTPS on load balancer (requires certificate)"
+  type        = bool
+  default     = false
 }

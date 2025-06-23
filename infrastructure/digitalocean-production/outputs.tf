@@ -25,7 +25,7 @@ output "registry_name" {
 
 output "loadbalancer_ip" {
   description = "Load balancer IP address"
-  value       = digitalocean_loadbalancer.production_lb.ip
+  value       = var.create_load_balancer ? digitalocean_loadbalancer.production_lb[0].ip : null
 }
 
 output "vpc_id" {

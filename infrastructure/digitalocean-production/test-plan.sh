@@ -40,10 +40,7 @@ fi
 echo "🔍 Executando terraform plan..."
 terraform plan \
     -var="do_token=$DO_TOKEN" \
-    -var="use_existing_vpc=true" \
-    -var="vpc_name=formerr-production-vpc" \
-    -var="use_existing_registry=true" \
-    -var="registry_name=formerr"
+    -var-file="terraform.tfvars"
 
 if [ $? -eq 0 ]; then
     echo "✅ Terraform plan executado com sucesso!"

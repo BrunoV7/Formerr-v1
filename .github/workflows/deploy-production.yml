@@ -152,7 +152,7 @@ jobs:
       id: plan
       run: |
         cd infrastructure/digitalocean-production
-        terraform plan -var="do_token=${{ secrets.DO_TOKEN_PROD }}" -out=tfplan
+        terraform plan -var="do_token=${{ secrets.DO_TOKEN_PROD }}" -var-file="terraform.tfvars" -out=tfplan
         
         # Show plan summary
         terraform show -no-color tfplan

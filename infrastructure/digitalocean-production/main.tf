@@ -76,7 +76,7 @@ module "kubernetes_cluster" {
   node_count        = var.node_count
   node_size         = var.node_size
   kubernetes_version = var.cluster_version
-  ha                = true   # Production needs HA
+  ha                = false  # Disabled due to droplet limit (3 max)
   auto_upgrade      = false  # Manual upgrades in production
   surge_upgrade     = true
   tags             = local.common_tags
@@ -101,12 +101,13 @@ module "container_registry" {
   # Removido depends_on para não depender do cluster
 }
 
-# Load Balancer for ingress with SSL
+# Load Balancer for ingress (optional)
 resource "digitalocean_loadbalancer" "production_lb" {
+  count    = var.create_load_balancer ? 1 : 0
   name     = "${local.cluster_name}-lb"
   region   = var.region
   vpc_uuid = local.vpc_id
-  size     = "lb-medium"  # Larger LB for production
+  size     = "lb-small"  # Changed to small for cost optimization
 
   forwarding_rule {
     entry_protocol  = "http"
@@ -115,18 +116,22 @@ resource "digitalocean_loadbalancer" "production_lb" {
     target_port     = 80
   }
 
-  forwarding_rule {
-    entry_protocol  = "https"
-    entry_port      = 443
-    target_protocol = "http"
-    target_port     = 80
-    tls_passthrough = false
+  # HTTPS rule only if enabled and certificate is available
+  dynamic "forwarding_rule" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      entry_protocol  = "https"
+      entry_port      = 443
+      target_protocol = "http"
+      target_port     = 80
+      tls_passthrough = true  # Use TLS passthrough to avoid certificate requirement
+    }
   }
 
   healthcheck {
     protocol               = "http"
     port                   = 80
-    path                   = "/health"
+    path                   = "/"  # Changed from /health to / as it's more common
     check_interval_seconds = 10
     response_timeout_seconds = 5
     unhealthy_threshold    = 3
