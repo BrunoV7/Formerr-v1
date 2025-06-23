@@ -13,7 +13,7 @@ variable "region" {
 variable "node_count" {
   description = "Number of worker nodes in the cluster"
   type        = number
-  default     = 3  # More nodes for production
+  default     = 2  # Reduzido para manter baixo custo e não exceder limite
 }
 
 variable "node_size" {

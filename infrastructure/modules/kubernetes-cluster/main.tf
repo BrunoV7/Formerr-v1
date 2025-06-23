@@ -28,9 +28,7 @@ resource "digitalocean_kubernetes_cluster" "cluster" {
     node_count = var.node_count
     tags       = var.tags
 
-    auto_scale = true
-    min_nodes  = var.node_count
-    max_nodes  = var.node_count * 2
+    auto_scale = false # Desabilitado para não exceder limite
   }
 }
 
