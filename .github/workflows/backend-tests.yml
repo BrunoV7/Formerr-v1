@@ -49,14 +49,18 @@ jobs:
           -e GITHUB_CLIENT_ID=test \
           -e GITHUB_CLIENT_SECRET=test \
           formerr-backend:test
-        
-        # Wait for container to be ready
-        sleep 10
-        
-        # Test health endpoint
-        curl -f http://localhost:8000/health || exit 1
-        
-        # Stop container
+
+        # Espera até 60s pelo endpoint de health
+        for i in {1..12}; do
+          if curl -f http://localhost:8000/health; then
+            echo "Backend está pronto!"
+            break
+          fi
+          echo "Aguardando o backend iniciar... ($i/12)"
+          sleep 5
+        done
+
+        # Para e remove o container
         docker stop test-backend
         docker rm test-backend
 
