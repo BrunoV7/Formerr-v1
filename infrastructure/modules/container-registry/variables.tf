@@ -24,3 +24,9 @@ variable "tags" {
   type        = list(string)
   default     = []
 }
+
+variable "use_existing" {
+  description = "Whether to use existing registry instead of creating new one"
+  type        = bool
+  default     = true
+}

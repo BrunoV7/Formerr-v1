@@ -1,21 +1,25 @@
+locals {
+  registry = var.use_existing ? data.digitalocean_container_registry.existing[0] : digitalocean_container_registry.registry[0]
+}
+
 output "registry_id" {
   description = "ID of the container registry"
-  value       = digitalocean_container_registry.registry.id
+  value       = local.registry.id
 }
 
 output "registry_name" {
   description = "Name of the container registry"
-  value       = digitalocean_container_registry.registry.name
+  value       = local.registry.name
 }
 
 output "registry_endpoint" {
   description = "Endpoint URL of the container registry"
-  value       = digitalocean_container_registry.registry.endpoint
+  value       = local.registry.endpoint
 }
 
 output "registry_server_url" {
   description = "Server URL of the container registry"
-  value       = digitalocean_container_registry.registry.server_url
+  value       = local.registry.server_url
 }
 
 output "docker_credentials" {
@@ -26,5 +30,5 @@ output "docker_credentials" {
 
 output "registry_secret_name" {
   description = "Name of the Kubernetes registry secret"
-  value       = "${digitalocean_container_registry.registry.name}-registry-secret"  # Static value since secret will be created separately
+  value       = "${local.registry.name}-registry-secret"  # Static value since secret will be created separately
 }

@@ -30,7 +30,7 @@ output "loadbalancer_ip" {
 
 output "vpc_id" {
   description = "VPC ID"
-  value       = digitalocean_vpc.production_vpc.id
+  value       = local.vpc_id
 }
 
 output "kubeconfig" {

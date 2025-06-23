@@ -63,3 +63,9 @@ variable "maintenance_policy" {
     day        = "sunday"
   }
 }
+
+variable "vpc_uuid" {
+  description = "VPC UUID to deploy the cluster in"
+  type        = string
+  default     = null
+}

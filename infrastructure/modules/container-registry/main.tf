@@ -7,15 +7,26 @@ terraform {
   }
 }
 
+# Try to use existing registry first
+data "digitalocean_container_registry" "existing" {
+  count = var.use_existing ? 1 : 0
+  name  = var.registry_name
+}
+
 resource "digitalocean_container_registry" "registry" {
+  count                  = var.use_existing ? 0 : 1
   name                   = var.registry_name
-  subscription_tier_slug = var.subscription_tier
+  subscription_tier_slug = "basic"  # Mudado para "basic" que é mais barato
   region                 = var.region
+}
+
+locals {
+  registry_name = var.use_existing ? data.digitalocean_container_registry.existing[0].name : digitalocean_container_registry.registry[0].name
 }
 
 # Container registry docker credentials for Kubernetes
 resource "digitalocean_container_registry_docker_credentials" "registry_credentials" {
-  registry_name = digitalocean_container_registry.registry.name
+  registry_name = local.registry_name
 }
 
 # Note: Kubernetes secrets will be created separately after cluster is ready

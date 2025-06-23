@@ -13,6 +13,7 @@ resource "digitalocean_kubernetes_cluster" "cluster" {
   version  = var.kubernetes_version
   ha       = var.ha
   tags     = var.tags
+  vpc_uuid = var.vpc_uuid
 
   auto_upgrade      = var.auto_upgrade
   surge_upgrade     = var.surge_upgrade

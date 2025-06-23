@@ -19,7 +19,7 @@ on:
 
 env:
   REGISTRY: registry.digitalocean.com
-  REGISTRY_NAME: formerr-production-registry
+  REGISTRY_NAME: formerr
   CLUSTER_NAME: formerr-production
   AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_KEY }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET }}
@@ -127,16 +127,25 @@ jobs:
           echo "Importing existing cluster to Terraform state..."
           terraform import module.kubernetes_cluster.digitalocean_kubernetes_cluster.cluster $CLUSTER_ID || echo "Cluster already in state or import failed"
         fi
-
-    - name: Import existing VPC if needed
-      env:
-        TF_VAR_do_token: ${{ secrets.DO_TOKEN_PROD }}
-      run: |
-        cd infrastructure/digitalocean-production
-        VPC_ID=$(doctl compute vpc list --format ID,Name --no-header | grep "formerr-production-vpc" | awk '{print $1}' || echo "")
+        
+        # Verify VPC exists (but do not import/create - use data source)
+        VPC_ID=$(doctl vpcs list --format ID,Name --no-header | grep "formerr-production-vpc" | awk '{print $1}' || echo "")
         if [ ! -z "$VPC_ID" ]; then
-          echo "Found existing VPC: $VPC_ID"
-          terraform import digitalocean_vpc.production_vpc $VPC_ID || echo "VPC already in state or import failed"
+          echo "✅ Found existing VPC formerr-production-vpc: $VPC_ID"
+          echo "VPC will be referenced via data source in Terraform"
+        else
+          echo "❌ VPC formerr-production-vpc not found! Please ensure it exists."
+          exit 1
+        fi
+        
+        # Verify container registry exists (but do not import/create - use data source)
+        REGISTRY_NAME=$(doctl registry list --format Name --no-header | grep "formerr" || echo "")
+        if [ ! -z "$REGISTRY_NAME" ]; then
+          echo "✅ Found existing container registry: $REGISTRY_NAME"
+          echo "Registry will be referenced via data source in Terraform"
+        else
+          echo "❌ Container registry 'formerr' not found! Please ensure it exists."
+          exit 1
         fi
 
     - name: Terraform Plan

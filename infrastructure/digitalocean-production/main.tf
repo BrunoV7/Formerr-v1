@@ -33,7 +33,7 @@ terraform {
 locals {
   environment = "production"
   cluster_name = "formerr-production"
-  registry_name = "formerr-production-registry"
+  registry_name = "formerr"  # Use o registry existente
   
   common_tags = [
     "formerr",
@@ -50,11 +50,21 @@ provider "digitalocean" {
 # Kubernetes and Helm providers will be configured dynamically
 # when the cluster is available
 
-# Create VPC for isolation
+# VPC - Use existing or create new
+data "digitalocean_vpc" "existing_vpc" {
+  count = var.use_existing_vpc ? 1 : 0
+  name  = var.vpc_name
+}
+
 resource "digitalocean_vpc" "production_vpc" {
-  name     = "${local.cluster_name}-vpc"
+  count    = var.use_existing_vpc ? 0 : 1
+  name     = var.vpc_name
   region   = var.region
   ip_range = "10.10.0.0/16"
+}
+
+locals {
+  vpc_id = var.use_existing_vpc ? data.digitalocean_vpc.existing_vpc[0].id : digitalocean_vpc.production_vpc[0].id
 }
 
 # Kubernetes Cluster using our module
@@ -65,11 +75,12 @@ module "kubernetes_cluster" {
   region            = var.region
   node_count        = var.node_count
   node_size         = var.node_size
-  kubernetes_version = var.kubernetes_version
+  kubernetes_version = var.cluster_version
   ha                = true   # Production needs HA
   auto_upgrade      = false  # Manual upgrades in production
   surge_upgrade     = true
   tags             = local.common_tags
+  vpc_uuid          = local.vpc_id
 
   maintenance_policy = {
     start_time = "03:00"  # 3 AM maintenance window
@@ -81,19 +92,20 @@ module "kubernetes_cluster" {
 module "container_registry" {
   source = "../modules/container-registry"
 
-  registry_name     = local.registry_name
-  subscription_tier = "professional"  # Higher tier for production
+  registry_name     = "formerr"  # Use o registry existente
+  use_existing      = true       # Use o registry existente
+  subscription_tier = "basic"    # Mudado para basic para baixo custo
   region           = var.region
   tags             = local.common_tags
 
-  depends_on = [module.kubernetes_cluster]
+  # Removido depends_on para não depender do cluster
 }
 
 # Load Balancer for ingress with SSL
 resource "digitalocean_loadbalancer" "production_lb" {
   name     = "${local.cluster_name}-lb"
   region   = var.region
-  vpc_uuid = digitalocean_vpc.production_vpc.id
+  vpc_uuid = local.vpc_id
   size     = "lb-medium"  # Larger LB for production
 
   forwarding_rule {

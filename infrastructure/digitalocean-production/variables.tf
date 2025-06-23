@@ -1,5 +1,5 @@
 variable "do_token" {
-  description = "DigitalOcean API token"
+  description = "DigitalOcean Personal Access Token"
   type        = string
   sensitive   = true
 }
@@ -7,29 +7,75 @@ variable "do_token" {
 variable "region" {
   description = "DigitalOcean region"
   type        = string
-  default     = "nyc3"  # Different region from staging
+  default     = "fra1"
+}
+
+variable "cluster_name" {
+  description = "Name of the Kubernetes cluster"
+  type        = string
+  default     = "formerr-production"
+}
+
+variable "cluster_version" {
+  description = "Kubernetes cluster version"
+  type        = string
+  default     = "1.32.5-do.0"
 }
 
 variable "node_count" {
   description = "Number of worker nodes in the cluster"
   type        = number
-  default     = 2  # Reduzido para manter baixo custo e não exceder limite
+  default     = 2
 }
 
 variable "node_size" {
   description = "Size of the worker nodes"
   type        = string
-  default     = "s-4vcpu-8gb"  # Larger nodes for production
+  default     = "s-2vcpu-2gb"
 }
 
-variable "kubernetes_version" {
-  description = "Kubernetes version"
+variable "use_existing_vpc" {
+  description = "Whether to use an existing VPC instead of creating a new one"
+  type        = bool
+  default     = true
+}
+
+variable "vpc_name" {
+  description = "Name of the existing VPC to use"
   type        = string
-  default     = "1.32.5-do.0"  # Updated to latest stable version
+  default     = "formerr-production-vpc"
+}
+
+variable "registry_name" {
+  description = "Name of the container registry"
+  type        = string
+  default     = "formerr"
+}
+
+variable "use_existing_registry" {
+  description = "Whether to use an existing container registry"
+  type        = bool
+  default     = true
+}
+
+variable "registry_tier" {
+  description = "Container registry subscription tier"
+  type        = string
+  default     = "basic"
 }
 
 variable "environment" {
   description = "Environment name"
   type        = string
   default     = "production"
+}
+
+variable "tags" {
+  description = "Tags to apply to resources"
+  type        = map(string)
+  default = {
+    Environment = "production"
+    Project     = "formerr"
+    ManagedBy   = "terraform"
+  }
 }
