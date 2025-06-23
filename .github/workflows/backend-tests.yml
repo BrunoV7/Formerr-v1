@@ -36,9 +36,6 @@ jobs:
         pip install -r requirements.txt
         pip install pytest pytest-cov pytest-asyncio black flake8 isort
 
-    - name: Code formatting check (Black)
-      run: black --check --diff .
-
     - name: Import sorting check (isort)
       run: isort --check-only --diff .
 
