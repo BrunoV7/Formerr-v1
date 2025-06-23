@@ -7,7 +7,7 @@ variable "do_token" {
 variable "region" {
   description = "DigitalOcean region"
   type        = string
-  default     = "fra1"
+  default     = "nyc3"
 }
 
 variable "cluster_name" {
