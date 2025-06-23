@@ -19,7 +19,7 @@ terraform {
     endpoint   = "https://formerr-spaces.nyc3.digitaloceanspaces.com"
     bucket     = "formerr-spaces"
     key        = "terraform/production/terraform.tfstate"
-    region     = "nyc3"
+    region     = "us-east-1"
     skip_credentials_validation = true
     skip_metadata_api_check     = true
   }
