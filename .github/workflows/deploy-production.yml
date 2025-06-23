@@ -105,6 +105,27 @@ jobs:
         cd infrastructure/digitalocean-production
         terraform init
 
+    - name: Check for existing resources
+      run: |
+        cd infrastructure/digitalocean-production
+        echo "🔍 Checking for existing resources that might conflict..."
+        
+        # Check for existing firewall with same name
+        FIREWALL_ID=$(doctl compute firewall list --format ID,Name --no-header | grep "formerr-production-firewall" | awk '{print $1}' || echo "")
+        if [ ! -z "$FIREWALL_ID" ]; then
+          echo "Found existing firewall: $FIREWALL_ID"
+          echo "Importing existing firewall to Terraform state..."
+          terraform import digitalocean_firewall.production_firewall $FIREWALL_ID || echo "Firewall already in state or import failed"
+        fi
+        
+        # Check for existing clusters
+        CLUSTER_ID=$(doctl kubernetes cluster list --format ID,Name --no-header | grep "formerr-production" | awk '{print $1}' || echo "")
+        if [ ! -z "$CLUSTER_ID" ]; then
+          echo "Found existing cluster: $CLUSTER_ID"
+          echo "Importing existing cluster to Terraform state..."
+          terraform import module.kubernetes_cluster.digitalocean_kubernetes_cluster.cluster $CLUSTER_ID || echo "Cluster already in state or import failed"
+        fi
+
     - name: Terraform Plan
       id: plan
       run: |

@@ -25,7 +25,7 @@ variable "node_size" {
 variable "kubernetes_version" {
   description = "Kubernetes version"
   type        = string
-  default     = "1.29.1-do.0"
+  default     = "1.32.5-do.0"  # Updated to latest stable version
 }
 
 variable "environment" {
