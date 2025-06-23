@@ -16,10 +16,12 @@ terraform {
   }
 
   backend "s3" {
-    endpoint   = "https://formerr-spaces.nyc3.digitaloceanspaces.com"
-    bucket     = "formerr-spaces"
-    key        = "terraform/production/terraform.tfstate"
-    region     = "nyc3"
+    bucket                      = "formerr-spaces"
+    key                         = "terraform/production/terraform.tfstate"
+    region                      = "us-east-1"
+    endpoints = {
+      s3 = "https://formerr-spaces.nyc3.digitaloceanspaces.com"
+    }
     skip_credentials_validation = true
     skip_metadata_api_check     = true
   }
