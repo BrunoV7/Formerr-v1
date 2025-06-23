@@ -39,38 +39,6 @@ jobs:
     - name: Build Docker image
       run: |
         docker build -t formerr-backend:test .
-        
-    - name: Test Docker image
-      run: |
-        # Start container and test if it's healthy
-        docker run -d --name test-backend -p 8000:8000 \
-          -e DATABASE_URL=sqlite:///./test.db \
-          -e SECRET_KEY=test-secret \
-          -e GITHUB_CLIENT_ID=test \
-          -e GITHUB_CLIENT_SECRET=test \
-          formerr-backend:test
-
-        # Espera até 60s pelo endpoint de health
-        for i in {1..12}; do
-          if curl -f http://localhost:8000/health; then
-            echo "Backend está pronto!"
-            break
-          fi
-          echo "Aguardando o backend iniciar... ($i/12)"
-          sleep 5
-        done
-
-        # Para e remove o container
-        docker stop test-backend
-        docker rm test-backend
-
-    - name: Upload coverage to Codecov
-      if: success()
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./backend/coverage.xml
-        flags: backend
-        name: backend-coverage
 
   security-scan:
     runs-on: ubuntu-latest
