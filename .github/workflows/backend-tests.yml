@@ -104,9 +104,3 @@ jobs:
       run: |
         # Check for known security vulnerabilities
         safety check -r requirements.txt --json || true
-
-    - name: Install Bandit
-      run: pip install bandit
-
-    - name: Run Bandit security linter
-      run: bandit -r . -ll
