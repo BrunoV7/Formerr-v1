@@ -14,7 +14,7 @@ on:
         - production
       version:
         description: 'Version tag to deploy (e.g., v1.0.0 or commit SHA)'
-        required: true
+        required: false
         type: string
 
 env:
@@ -48,8 +48,12 @@ jobs:
       id: version_check
       run: |
         VERSION="${{ github.event.inputs.version }}"
+        if [ -z "$VERSION" ]; then
+          VERSION="${{ github.sha }}"
+        fi
         if [[ $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ $VERSION =~ ^[a-f0-9]{7,40}$ ]]; then
           echo "valid=true" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "✅ Version format is valid: $VERSION"
         else
           echo "valid=false" >> $GITHUB_OUTPUT
@@ -145,7 +149,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        ref: ${{ github.event.inputs.version }}
+        ref: ${{ env.VERSION }}
 
     - name: Install doctl
       uses: digitalocean/action-doctl@v2
@@ -160,7 +164,7 @@ jobs:
         cd ${{ matrix.component }}
         
         # Use the specified version as tag
-        VERSION="${{ github.event.inputs.version }}"
+        VERSION="${{ env.VERSION }}"
         IMAGE_NAME="${REGISTRY}/${REGISTRY_NAME}/formerr-${{ matrix.component }}"
         
         # Build with version and latest tags
@@ -226,7 +230,7 @@ jobs:
       run: |
         cd charts/formerr
         
-        VERSION="${{ github.event.inputs.version }}"
+        VERSION="${{ env.VERSION }}"
         
         # For production, create database secret using DigitalOcean managed database credentials
         kubectl create secret generic formerr-database-secret \
@@ -286,7 +290,7 @@ jobs:
           echo "🎉 Production deployment successful!"
           echo "🌍 Application: https://app.formerr.com"
           echo "📊 Monitoring: https://grafana.formerr.com"
-          echo "📋 Version deployed: ${{ github.event.inputs.version }}"
+          echo "📋 Version deployed: ${{ env.VERSION }}"
         else
           echo "❌ Production deployment failed!"
         fi
