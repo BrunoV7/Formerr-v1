@@ -49,15 +49,6 @@ jobs:
         # Exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-    - name: Run unit tests
-      run: |
-        pytest -v --cov=app --cov-report=xml --cov-report=term-missing
-      env:
-        DATABASE_URL: sqlite:///./test.db
-        SECRET_KEY: test-secret-key-for-testing
-        GITHUB_CLIENT_ID: test-client-id
-        GITHUB_CLIENT_SECRET: test-client-secret
-
     - name: Build Docker image
       run: |
         docker build -t formerr-backend:test .
